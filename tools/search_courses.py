@@ -166,7 +166,7 @@ _DEFAULT_ICON = (
 )
 
 
-def _build_card_html(course: dict) -> str:
+def _build_card_html(course: dict, index: int = 0) -> str:
     """Build HTML for one course card with device-aware Buy button."""
     name = course["name"]
     icon = course["icon"] or _DEFAULT_ICON
@@ -177,37 +177,41 @@ def _build_card_html(course: dict) -> str:
     discount_badge = ""
     if discount and int(discount) > 0:
         discount_badge = (
-            f'<span style="background:#ef4444;color:#fff;font-size:11px;'
-            f'font-weight:700;padding:2px 7px;border-radius:6px;margin-left:8px;">'
+            f'<span style="background:linear-gradient(135deg,#ff6b6b,#ee5a24);'
+            f'color:#fff;font-size:10px;font-weight:700;padding:3px 8px;'
+            f'border-radius:20px;margin-left:6px;letter-spacing:0.3px;">'
             f'{discount}% OFF</span>'
         )
 
-    # JS onclick: Android → deeplink, else → webLink
+    # Alternate subtle accent on left border for visual rhythm
+    accent = "#7c3aed" if index % 2 == 0 else "#06b6d4"
+
     return f"""
-    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
-                border-radius:14px;padding:14px 16px;">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+    <div style="background:rgba(255,255,255,0.03);
+                border:1px solid rgba(255,255,255,0.06);
+                border-left:3px solid {accent};
+                border-radius:12px;padding:14px 16px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
         <img src="{icon}" alt=""
-             style="width:44px;height:44px;border-radius:10px;object-fit:cover;
+             style="width:40px;height:40px;border-radius:8px;object-fit:cover;
                     background:#1e293b;flex-shrink:0;"
              onerror="this.style.display='none'"/>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:14px;font-weight:600;color:#f1f5f9;
-                      line-height:1.3;word-wrap:break-word;">
+          <div style="font-size:14px;font-weight:600;color:#e2e8f0;
+                      line-height:1.4;word-wrap:break-word;">
             {name}{discount_badge}
           </div>
-          <div style="font-size:11px;color:#94a3b8;margin-top:2px;">Testbook SuperCoaching</div>
         </div>
       </div>
       <a href="{web_link}"
          data-deeplink="{deep_link}"
          onclick="(function(e){{var u=/Android/i.test(navigator.userAgent)?e.currentTarget.dataset.deeplink:e.currentTarget.href;window.open(u,'_blank');e.preventDefault()}})(event)"
          target="_blank" rel="noopener noreferrer"
-         style="display:block;width:100%;padding:10px 0;border:none;border-radius:10px;
-                background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;
-                font-weight:700;font-size:14px;cursor:pointer;text-decoration:none;
-                text-align:center;">
-        Buy Course
+         style="display:block;width:100%;padding:10px 0;border:none;border-radius:8px;
+                background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;
+                font-weight:600;font-size:13px;cursor:pointer;text-decoration:none;
+                text-align:center;letter-spacing:0.3px;">
+        Explore &amp; Buy →
       </a>
     </div>"""
 
@@ -257,7 +261,11 @@ def search_courses(args: dict) -> dict:
 
     if not results:
         return {
-            "text": f"No courses found for '{query}'.",
+            "text": (
+                f"I couldn't find any courses matching '{query}' on Testbook right now. "
+                f"Try searching with a different keyword — for example, the exam name "
+                f"(like 'SSC CGL', 'UPSC', 'GATE') or subject area."
+            ),
             "html": _empty_html(
                 f'We couldn\'t find courses matching "<strong>{query}</strong>".'
                 "<br/>Try a different search term."
@@ -265,23 +273,29 @@ def search_courses(args: dict) -> dict:
         }
 
     # ── Build the results widget ─────────────────────────────────────────
-    cards_html = "\n".join(_build_card_html(c) for c in results)
+    cards_html = "\n".join(_build_card_html(c, i) for i, c in enumerate(results))
     result_names = ", ".join(c["name"] for c in results)
 
     html = f"""
-    <div style="background:linear-gradient(135deg,#0f172a,#1e293b);
-                border:1px solid rgba(255,255,255,0.08);border-radius:18px;
-                padding:24px;max-width:520px;">
+    <div style="background:linear-gradient(160deg,#0c1222 0%,#131b2e 50%,#0f1628 100%);
+                border:1px solid rgba(124,58,237,0.15);border-radius:16px;
+                padding:20px;max-width:520px;
+                box-shadow:0 4px 24px rgba(0,0,0,0.3),0 0 0 1px rgba(124,58,237,0.08);">
       <!-- Header -->
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
-        <div style="font-size:28px;">📚</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;
+                  padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div style="width:36px;height:36px;border-radius:10px;
+                    background:linear-gradient(135deg,#7c3aed,#06b6d4);
+                    display:flex;align-items:center;justify-content:center;
+                    font-size:18px;flex-shrink:0;">📚</div>
         <div>
-          <h2 style="margin:0;font-size:18px;color:#f1f5f9;">
-            Testbook Courses
+          <h2 style="margin:0;font-size:16px;font-weight:700;color:#f1f5f9;
+                     letter-spacing:-0.2px;">
+            Recommended Courses
           </h2>
-          <p style="margin:2px 0 0;font-size:13px;color:#64748b;">
+          <p style="margin:2px 0 0;font-size:12px;color:#64748b;">
             {len(results)} result{"s" if len(results) != 1 else ""} for
-            "<strong style="color:#94a3b8;">{query}</strong>"
+            "<span style="color:#a78bfa;">{query}</span>"
           </p>
         </div>
       </div>
@@ -292,16 +306,51 @@ def search_courses(args: dict) -> dict:
       </div>
 
       <!-- Footer -->
-      <div style="margin-top:16px;text-align:center;">
+      <div style="margin-top:14px;padding-top:12px;
+                  border-top:1px solid rgba(255,255,255,0.04);text-align:center;">
         <a href="https://testbook.com" target="_blank" rel="noopener noreferrer"
-           style="font-size:12px;color:#64748b;text-decoration:none;">
-          Explore all courses on testbook.com →
+           style="font-size:11px;color:#4b5563;text-decoration:none;letter-spacing:0.2px;">
+          Powered by Testbook →
         </a>
       </div>
     </div>"""
 
-    text = f"Found {len(results)} course(s) for '{query}': {result_names}."
+    text = _build_text_response(query, results)
     return {"text": text, "html": html}
+
+
+def _build_text_response(query: str, results: list[dict]) -> str:
+    """Build a conversational text response that ChatGPT can use to frame its answer."""
+    count = len(results)
+    names = [r["name"] for r in results]
+
+    # Highlight courses with discounts
+    discounted = [r for r in results if r.get("discount") and int(r["discount"]) > 0]
+
+    lines = [
+        f"Here are {count} recommended Testbook courses for '{query}':\n",
+    ]
+
+    for i, r in enumerate(results, 1):
+        entry = f"{i}. **{r['name']}**"
+        if r.get("discount") and int(r["discount"]) > 0:
+            entry += f" — currently {r['discount']}% off!"
+        lines.append(entry)
+
+    lines.append("")
+
+    if discounted:
+        best = max(discounted, key=lambda x: int(x["discount"]))
+        lines.append(
+            f"💡 Best deal right now: **{best['name']}** at {best['discount']}% off."
+        )
+
+    lines.append(
+        "\nEach course includes live classes, study material, test series, and more. "
+        "Tap 'Explore & Buy' on any card above to get started!"
+    )
+
+    return "\n".join(lines)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
