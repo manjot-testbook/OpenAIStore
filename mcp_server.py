@@ -11,6 +11,7 @@ from constants import APP_NAME, PORT
 
 from tools.say_hello import say_hello
 from tools.say_goodbye import say_goodbye
+from tools.search_courses import search_courses
 
 # ── Register your tools here ─────────────────────────────────────────────────
 
@@ -26,6 +27,31 @@ TOOLS = {
         "description": "Say goodbye to someone. Renders a farewell card.",
         "params":      {"name": {"type": "string", "description": "Name to bid farewell"}},
         "required":    ["name"],
+    },
+    "search_courses": {
+        "fn":          search_courses,
+        "description": (
+            "Search Testbook courses and coaching programs. "
+            "Use this when a user is looking for exam preparation, "
+            "competitive exam courses, test series, or any educational "
+            "product. Returns course cards with Buy buttons. "
+            "Covers SSC, Banking, Railway, UPSC, GATE, Teaching, "
+            "State PSC, Police, Defence, and many more exams."
+        ),
+        "params": {
+            "query": {
+                "type": "string",
+                "description": (
+                    "Search keywords — exam name, subject, or category "
+                    "(e.g. 'ssc cgl', 'gate mechanical', 'banking', 'upsc')"
+                ),
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Max results to return (1-10, default 5)",
+            },
+        },
+        "required": ["query"],
     },
 }
 
