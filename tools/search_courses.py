@@ -167,7 +167,7 @@ _DEFAULT_ICON = (
 
 
 def _build_card_html(course: dict, index: int = 0) -> str:
-    """Build HTML for one course card with device-aware Buy button."""
+    """Build HTML for one course card — Firebase Studio inspired."""
     name = course["name"]
     icon = course["icon"] or _DEFAULT_ICON
     web_link = course["web_link"]
@@ -177,42 +177,41 @@ def _build_card_html(course: dict, index: int = 0) -> str:
     discount_badge = ""
     if discount and int(discount) > 0:
         discount_badge = (
-            f'<span style="background:linear-gradient(135deg,#ff6b6b,#ee5a24);'
-            f'color:#fff;font-size:10px;font-weight:700;padding:3px 8px;'
-            f'border-radius:20px;margin-left:6px;letter-spacing:0.3px;">'
-            f'{discount}% OFF</span>'
+            f'<span style="background:rgba(99,102,241,0.15);color:#a5b4fc;'
+            f'font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;'
+            f'margin-left:6px;">{discount}% off</span>'
         )
 
-    # Alternate subtle accent on left border for visual rhythm
-    accent = "#7c3aed" if index % 2 == 0 else "#06b6d4"
+    # Staggered fade-in delay
+    delay = f"{index * 0.08:.2f}s"
 
     return f"""
-    <div style="background:rgba(255,255,255,0.03);
-                border:1px solid rgba(255,255,255,0.06);
-                border-left:3px solid {accent};
-                border-radius:12px;padding:14px 16px;">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+    <div class="tb-card" style="background:rgba(255,255,255,0.025);
+                border-radius:12px;padding:14px 16px;
+                animation:tbFadeUp .4s ease both;animation-delay:{delay};
+                transition:background .2s ease;">
+      <div style="display:flex;align-items:center;gap:12px;">
         <img src="{icon}" alt=""
-             style="width:40px;height:40px;border-radius:8px;object-fit:cover;
-                    background:#1e293b;flex-shrink:0;"
+             style="width:36px;height:36px;border-radius:8px;object-fit:cover;
+                    background:rgba(255,255,255,0.05);flex-shrink:0;"
              onerror="this.style.display='none'"/>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:14px;font-weight:600;color:#e2e8f0;
-                      line-height:1.4;word-wrap:break-word;">
+          <div style="font-size:13px;font-weight:500;color:#e2e8f0;
+                      line-height:1.45;word-wrap:break-word;">
             {name}{discount_badge}
           </div>
         </div>
+        <a href="{web_link}"
+           data-deeplink="{deep_link}"
+           onclick="(function(e){{var u=/Android/i.test(navigator.userAgent)?e.currentTarget.dataset.deeplink:e.currentTarget.href;window.open(u,'_blank');e.preventDefault()}})(event)"
+           target="_blank" rel="noopener noreferrer"
+           style="flex-shrink:0;padding:7px 16px;border-radius:8px;
+                  background:rgba(99,102,241,0.12);color:#a5b4fc;
+                  font-weight:600;font-size:12px;cursor:pointer;text-decoration:none;
+                  transition:background .2s ease;white-space:nowrap;">
+          View →
+        </a>
       </div>
-      <a href="{web_link}"
-         data-deeplink="{deep_link}"
-         onclick="(function(e){{var u=/Android/i.test(navigator.userAgent)?e.currentTarget.dataset.deeplink:e.currentTarget.href;window.open(u,'_blank');e.preventDefault()}})(event)"
-         target="_blank" rel="noopener noreferrer"
-         style="display:block;width:100%;padding:10px 0;border:none;border-radius:8px;
-                background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;
-                font-weight:600;font-size:13px;cursor:pointer;text-decoration:none;
-                text-align:center;letter-spacing:0.3px;">
-        Explore &amp; Buy →
-      </a>
     </div>"""
 
 
@@ -277,41 +276,65 @@ def search_courses(args: dict) -> dict:
     result_names = ", ".join(c["name"] for c in results)
 
     html = f"""
-    <div style="background:linear-gradient(160deg,#0c1222 0%,#131b2e 50%,#0f1628 100%);
-                border:1px solid rgba(124,58,237,0.15);border-radius:16px;
-                padding:20px;max-width:520px;
-                box-shadow:0 4px 24px rgba(0,0,0,0.3),0 0 0 1px rgba(124,58,237,0.08);">
-      <!-- Header -->
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;
-                  padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.06);">
-        <div style="width:36px;height:36px;border-radius:10px;
-                    background:linear-gradient(135deg,#7c3aed,#06b6d4);
-                    display:flex;align-items:center;justify-content:center;
-                    font-size:18px;flex-shrink:0;">📚</div>
-        <div>
-          <h2 style="margin:0;font-size:16px;font-weight:700;color:#f1f5f9;
-                     letter-spacing:-0.2px;">
-            Recommended Courses
+    <style>
+      @keyframes tbShimmer {{
+        0%   {{ background-position: -200% center; }}
+        100% {{ background-position: 200% center; }}
+      }}
+      @keyframes tbFadeUp {{
+        from {{ opacity:0; transform:translateY(8px); }}
+        to   {{ opacity:1; transform:translateY(0); }}
+      }}
+      @keyframes tbPulse {{
+        0%,100% {{ opacity:0.6; }}
+        50%     {{ opacity:1; }}
+      }}
+      .tb-card:hover {{ background:rgba(255,255,255,0.045) !important; }}
+    </style>
+    <div style="background:#0f1117;border-radius:16px;overflow:hidden;
+                max-width:520px;font-family:-apple-system,system-ui,sans-serif;">
+
+      <!-- Animated gradient bar -->
+      <div style="height:3px;
+                  background:linear-gradient(90deg,#6366f1,#8b5cf6,#a78bfa,#6366f1);
+                  background-size:200% auto;
+                  animation:tbShimmer 3s linear infinite;"></div>
+
+      <div style="padding:20px;">
+
+        <!-- Header -->
+        <div style="margin-bottom:16px;animation:tbFadeUp .35s ease both;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <div style="width:6px;height:6px;border-radius:50%;background:#6366f1;
+                        animation:tbPulse 2s ease-in-out infinite;"></div>
+            <span style="font-size:11px;font-weight:600;color:#6366f1;
+                         text-transform:uppercase;letter-spacing:0.8px;">
+              Courses
+            </span>
+          </div>
+          <h2 style="margin:0;font-size:17px;font-weight:600;color:#f1f5f9;
+                     line-height:1.3;">
+            Results for "{query}"
           </h2>
-          <p style="margin:2px 0 0;font-size:12px;color:#64748b;">
-            {len(results)} result{"s" if len(results) != 1 else ""} for
-            "<span style="color:#a78bfa;">{query}</span>"
+          <p style="margin:4px 0 0;font-size:12px;color:#64748b;">
+            {len(results)} course{"s" if len(results) != 1 else ""} found
           </p>
         </div>
-      </div>
 
-      <!-- Course Cards -->
-      <div style="display:flex;flex-direction:column;gap:10px;">
-        {cards_html}
-      </div>
+        <!-- Cards -->
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          {cards_html}
+        </div>
 
-      <!-- Footer -->
-      <div style="margin-top:14px;padding-top:12px;
-                  border-top:1px solid rgba(255,255,255,0.04);text-align:center;">
-        <a href="https://testbook.com" target="_blank" rel="noopener noreferrer"
-           style="font-size:11px;color:#4b5563;text-decoration:none;letter-spacing:0.2px;">
-          Powered by Testbook →
-        </a>
+        <!-- Footer -->
+        <div style="margin-top:14px;text-align:center;
+                    animation:tbFadeUp .4s ease both;animation-delay:.5s;">
+          <a href="https://testbook.com" target="_blank" rel="noopener noreferrer"
+             style="font-size:11px;color:#475569;text-decoration:none;">
+            testbook.com
+          </a>
+        </div>
+
       </div>
     </div>"""
 
@@ -357,11 +380,15 @@ def _build_text_response(query: str, results: list[dict]) -> str:
 
 def _empty_html(message: str) -> str:
     return f"""
-    <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);
-                border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;
-                text-align:center;">
-      <div style="font-size:40px;margin-bottom:12px;">🔍</div>
-      <h2 style="margin:0 0 6px;font-size:20px;color:#f1f5f9;">No courses found</h2>
-      <p style="margin:0;color:#94a3b8;font-size:14px;">{message}</p>
+    <div style="background:#0f1117;border-radius:16px;overflow:hidden;
+                max-width:520px;font-family:-apple-system,system-ui,sans-serif;">
+      <div style="height:3px;background:linear-gradient(90deg,#6366f1,#8b5cf6,#a78bfa,#6366f1);
+                  background-size:200% auto;
+                  animation:tbShimmer 3s linear infinite;"></div>
+      <div style="padding:32px 20px;text-align:center;">
+        <div style="font-size:32px;margin-bottom:12px;opacity:0.5;">🔍</div>
+        <p style="margin:0;font-size:14px;font-weight:500;color:#94a3b8;
+                  line-height:1.5;">{message}</p>
+      </div>
     </div>"""
 
