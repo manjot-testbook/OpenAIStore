@@ -184,28 +184,29 @@ def _build_card_html(course: dict) -> str:
 
     # JS onclick: Android → deeplink, else → webLink
     return f"""
-    <div style="display:flex;align-items:center;gap:14px;
-                background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
                 border-radius:14px;padding:14px 16px;">
-      <img src="{icon}" alt=""
-           style="width:56px;height:56px;border-radius:10px;object-fit:cover;
-                  background:#1e293b;flex-shrink:0;"
-           onerror="this.style.display='none'"/>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:15px;font-weight:600;color:#f1f5f9;
-                    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-          {name}{discount_badge}
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+        <img src="{icon}" alt=""
+             style="width:44px;height:44px;border-radius:10px;object-fit:cover;
+                    background:#1e293b;flex-shrink:0;"
+             onerror="this.style.display='none'"/>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:600;color:#f1f5f9;
+                      line-height:1.3;word-wrap:break-word;">
+            {name}{discount_badge}
+          </div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:2px;">Testbook SuperCoaching</div>
         </div>
-        <div style="font-size:12px;color:#94a3b8;margin-top:2px;">Testbook SuperCoaching</div>
       </div>
       <a href="{web_link}"
          data-deeplink="{deep_link}"
          onclick="(function(e){{var u=/Android/i.test(navigator.userAgent)?e.currentTarget.dataset.deeplink:e.currentTarget.href;window.open(u,'_blank');e.preventDefault()}})(event)"
          target="_blank" rel="noopener noreferrer"
-         style="flex-shrink:0;padding:9px 18px;border:none;border-radius:10px;
+         style="display:block;width:100%;padding:10px 0;border:none;border-radius:10px;
                 background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;
-                font-weight:700;font-size:13px;cursor:pointer;text-decoration:none;
-                display:inline-block;text-align:center;">
+                font-weight:700;font-size:14px;cursor:pointer;text-decoration:none;
+                text-align:center;">
         Buy Course
       </a>
     </div>"""
