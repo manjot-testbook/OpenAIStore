@@ -1,13 +1,15 @@
 """
-tools/search_courses.py – Search Testbook courses/goals via live API.
+tools/search_courses.py – Search Testbook courses/goals via the live Search API.
 
-Fetches the full goal catalogue from the Testbook API, caches it in memory,
-and does token-based fuzzy search to return the best matches as a rich
-HTML widget with "Buy Course" buttons.
+Calls the Testbook global search endpoint (searchOn=goalCards) in real time,
+and returns a rich HTML widget with course cards.  Each card has a "Buy Course"
+button whose href is device-aware:
+  • Desktop / web  → pitchCarousel[0].webLink  (or fallback URL)
+  • Android app    → deep-link  testbook://super-coaching/{slug}/plans
 """
+import json
 import logging
-import time
-from pathlib import Path
+import urllib.parse
 
 import httpx
 
@@ -15,191 +17,144 @@ log = logging.getLogger(__name__)
 
 # ── API config ───────────────────────────────────────────────────────────────
 
-_GOALS_API = (
-    "https://api.testbook.com/api/v1/goals"
-    "?fields=_id,properties.title,properties.icon,properties.slug,isDeListed"
-    "&isAdminReq=true&language=English"
-)
+_SEARCH_BASE = "https://api.testbook.com/api/v1/search/global"
+
+_PROJECTION = json.dumps({
+    "results": {
+        "goalCards": {
+            "_id": 1,
+            "properties": {
+                "title": 1, "icon": 1, "cardTitle": 1, "cardDescription": 1,
+                "cardIcon": 1, "slug": 1, "heading": 1,
+                "pitchCarousel": {"url": 1, "webLink": 1, "type": 1},
+            },
+            "isDeListed": 1, "discountPercent": 1, "goalSubs": 1,
+        },
+    },
+    "searchId": 1,
+})
 
 _API_HEADERS = {
     "Accept": "application/json",
     "Origin": "https://testbook.com",
     "Referer": "https://testbook.com/",
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+    ),
     "x-tb-client": "web,1.2",
 }
 
-_CACHE_TTL = 600  # seconds – refresh catalogue every 10 min
 
-# ── In-memory cache ──────────────────────────────────────────────────────────
+# ── API call ─────────────────────────────────────────────────────────────────
 
-_courses: list[dict[str, str]] = []
-_cache_ts: float = 0.0
-
-
-def _fetch_courses() -> list[dict[str, str]]:
+def _search_api(term: str) -> list[dict]:
     """
-    Hit the Testbook goals API and return a clean list of active courses.
-    Each dict: {"name", "id", "slug", "url", "icon"}
+    Call the Testbook search/global API for goalCards.
+    Returns the raw list of goalCard dicts from the response.
     """
-    global _courses, _cache_ts
-
-    now = time.time()
-    if _courses and (now - _cache_ts) < _CACHE_TTL:
-        return _courses
+    params = urllib.parse.urlencode({
+        "term": term,
+        "searchOn": "goalCards",
+        "studentId": "",
+        "component": "goal-selection-search",
+        "type": "[Goal Selection] searchGoal",
+        "__projection": _PROJECTION,
+        "language": "English",
+    })
+    url = f"{_SEARCH_BASE}?{params}"
 
     try:
         with httpx.Client(timeout=15, follow_redirects=True) as client:
-            resp = client.get(_GOALS_API, headers=_API_HEADERS)
+            resp = client.get(url, headers=_API_HEADERS)
             resp.raise_for_status()
             data = resp.json()
 
-        goals = data.get("data", {}).get("goals", [])
-
-        results: list[dict[str, str]] = []
-        for g in goals:
-            # Skip delisted / inactive goals
-            if g.get("isDeListed"):
-                continue
-
-            props = g.get("properties", {})
-            title = (props.get("title") or "").strip()
-            slug = (props.get("slug") or "").strip()
-            icon = (props.get("icon") or "").strip()
-
-            if not title or not slug:
-                continue
-
-            # Normalise protocol-relative icon URLs
-            if icon.startswith("//"):
-                icon = "https:" + icon
-
-            results.append({
-                "name": title,
-                "id":   g.get("_id", ""),
-                "slug": slug,
-                "url":  f"https://testbook.com/{slug}",
-                "icon": icon,
-            })
-
-        if results:
-            _courses = results
-            _cache_ts = now
-            log.info("Fetched %d active courses from Testbook API", len(results))
-        else:
-            log.warning("API returned 0 active courses, keeping stale cache")
+        return data.get("data", {}).get("results", {}).get("goalCards", [])
 
     except Exception as exc:
-        log.error("Failed to fetch courses from API: %s", exc)
-        # If cache is empty AND API fails, fall back to CSV
-        if not _courses:
-            _courses = _load_csv_fallback()
-            _cache_ts = now
-
-    return _courses
+        log.error("Testbook search API error: %s", exc)
+        return []
 
 
-# ── CSV fallback (in case the API is unreachable on first boot) ──────────────
+# ── Parse a goalCard into a clean dict ───────────────────────────────────────
 
-_CSV_PATH = Path(__file__).resolve().parent.parent / "assets" / "goalDetails.csv"
+def _parse_card(card: dict) -> dict | None:
+    """Extract the fields we need from a raw goalCard."""
+    if card.get("isDeListed"):
+        return None
 
+    props = card.get("properties", {})
+    title = (props.get("title") or "").strip()
+    slug = (props.get("slug") or "").strip()
+    if not title or not slug:
+        return None
 
-def _load_csv_fallback() -> list[dict[str, str]]:
-    """Last-resort: read the old goalDetails.csv."""
-    import csv
-    log.warning("Falling back to CSV catalogue at %s", _CSV_PATH)
-    rows: list[dict[str, str]] = []
-    try:
-        with open(_CSV_PATH, newline="", encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                rows.append({
-                    "name": (row.get("goalName") or "").strip(),
-                    "id":   (row.get("goalId") or "").strip(),
-                    "slug": "",
-                    "url":  (row.get("URL") or "").strip(),
-                    "icon": (row.get("ICON") or "").strip(),
-                })
-    except FileNotFoundError:
-        pass
-    return rows
+    # Icon — prefer cardIcon.url, fall back to properties.icon
+    card_icon = props.get("cardIcon")
+    icon = ""
+    if isinstance(card_icon, dict):
+        icon = (card_icon.get("url") or "").strip()
+    if not icon:
+        icon = (props.get("icon") or "").strip()
+    if icon.startswith("//"):
+        icon = "https:" + icon
 
+    # Links from pitchCarousel
+    carousel = props.get("pitchCarousel", [])
+    web_link = ""
+    if carousel and isinstance(carousel[0], dict):
+        web_link = (carousel[0].get("webLink") or "").strip()
 
-# ── Scoring / search ─────────────────────────────────────────────────────────
+    # Fallback URLs when pitchCarousel is empty
+    if not web_link:
+        web_link = f"https://testbook.com/super-coaching/{slug}/plans"
 
-def _score_field(query_tokens: list[str], full_query: str, text: str) -> int:
-    """Score a single text field against query tokens."""
-    score = 0
-    matched_tokens = 0
-    for token in query_tokens:
-        if token in text:
-            score += 10
-            matched_tokens += 1
-            if text.startswith(token):
-                score += 5
-    # Bonus: full query appears as substring
-    if full_query in text:
-        score += 20
-    # Bonus: exact match
-    if text == full_query:
-        score += 50
-    # Bonus: ALL tokens matched (very relevant)
-    if matched_tokens == len(query_tokens) and matched_tokens > 1:
-        score += 15
-    return score
+    deep_link = f"testbook://super-coaching/{slug}/plans"
 
+    # Discount
+    discount = card.get("discountPercent")
 
-def _match_score(query_tokens: list[str], course: dict[str, str]) -> int:
-    """Score a course against search tokens, checking title AND slug."""
-    full_query = " ".join(query_tokens)
-    name_lower = course["name"].lower()
-    # Treat slug hyphens as spaces for matching (e.g. "ssc-cgl" → "ssc cgl")
-    slug_lower = course.get("slug", "").lower().replace("-", " ")
-
-    title_score = _score_field(query_tokens, full_query, name_lower)
-    slug_score = _score_field(query_tokens, full_query, slug_lower)
-
-    # Take the best of both, but give a small bonus if both match
-    best = max(title_score, slug_score)
-    if title_score > 0 and slug_score > 0:
-        best += 5
-    return best
+    return {
+        "name": title,
+        "id": card.get("_id", ""),
+        "slug": slug,
+        "icon": icon,
+        "web_link": web_link,
+        "deep_link": deep_link,
+        "discount": discount,
+    }
 
 
-def _search(query: str, limit: int = 5) -> list[dict[str, str]]:
-    """Fuzzy-search courses by query string, return top matches."""
-    courses = _fetch_courses()
-    query_lower = query.lower().strip()
-    if not query_lower:
-        return courses[:limit]
+# ── HTML widget builder ─────────────────────────────────────────────────────
 
-    query_tokens = query_lower.split()
-
-    scored = []
-    for c in courses:
-        score = _match_score(query_tokens, c)
-        if score > 0:
-            scored.append((score, c))
-
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return [c for _, c in scored[:limit]]
-
-
-# ── HTML widget builder ──────────────────────────────────────────────────────
-
-_DEFAULT_ICON = "https://cdn.testbook.com/resources/productionimages/goal_images/default.png"
+_DEFAULT_ICON = (
+    "https://cdn.testbook.com/resources/productionimages/goal_images/default.png"
+)
 
 
 def _build_card_html(course: dict) -> str:
-    """Build HTML for a single course card."""
+    """Build HTML for one course card with device-aware Buy button."""
     name = course["name"]
-    url = course["url"]
-    icon = course["icon"] if course["icon"] else _DEFAULT_ICON
+    icon = course["icon"] or _DEFAULT_ICON
+    web_link = course["web_link"]
+    deep_link = course["deep_link"]
+    discount = course.get("discount")
 
+    discount_badge = ""
+    if discount and int(discount) > 0:
+        discount_badge = (
+            f'<span style="background:#ef4444;color:#fff;font-size:11px;'
+            f'font-weight:700;padding:2px 7px;border-radius:6px;margin-left:8px;">'
+            f'{discount}% OFF</span>'
+        )
+
+    # JS: detect Android → use deep-link, else web-link
+    # The onclick builds the correct href at click-time.
     return f"""
     <div style="display:flex;align-items:center;gap:14px;
                 background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
-                border-radius:14px;padding:14px 16px;transition:transform .15s;">
+                border-radius:14px;padding:14px 16px;">
       <img src="{icon}" alt=""
            style="width:56px;height:56px;border-radius:10px;object-fit:cover;
                   background:#1e293b;flex-shrink:0;"
@@ -207,11 +162,14 @@ def _build_card_html(course: dict) -> str:
       <div style="flex:1;min-width:0;">
         <div style="font-size:15px;font-weight:600;color:#f1f5f9;
                     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-          {name}
+          {name}{discount_badge}
         </div>
         <div style="font-size:12px;color:#94a3b8;margin-top:2px;">Testbook SuperCoaching</div>
       </div>
-      <a href="{url}" target="_blank" rel="noopener noreferrer"
+      <a href="{web_link}"
+         data-deeplink="{deep_link}"
+         onclick="(function(e){{var u=/Android/i.test(navigator.userAgent)?e.currentTarget.dataset.deeplink:e.currentTarget.href;window.open(u,'_blank');e.preventDefault()}})(event)"
+         target="_blank" rel="noopener noreferrer"
          style="flex-shrink:0;padding:9px 18px;border:none;border-radius:10px;
                 background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;
                 font-weight:700;font-size:13px;cursor:pointer;text-decoration:none;
@@ -225,30 +183,41 @@ def _build_card_html(course: dict) -> str:
 
 def search_courses(args: dict) -> dict:
     """
-    MCP tool: search Testbook courses/goals.
+    MCP tool: search Testbook courses/goals via the live search API.
 
     args:
-        query (str) – what the user is looking for (e.g. "ssc cgl", "banking", "gate")
+        query (str) – what the user is looking for
         limit (int) – max results to return (default 5, max 10)
     """
-    query = args.get("query", "")
+    query = args.get("query", "").strip()
     limit = min(int(args.get("limit", 5)), 10)
 
-    results = _search(query, limit=limit)
+    if not query:
+        return {
+            "text": "Please provide a search query.",
+            "html": _empty_html("Please tell me what course you're looking for."),
+        }
+
+    # Hit the Testbook search API
+    raw_cards = _search_api(query)
+
+    # Parse and filter
+    results: list[dict] = []
+    for card in raw_cards:
+        parsed = _parse_card(card)
+        if parsed:
+            results.append(parsed)
+        if len(results) >= limit:
+            break
 
     if not results:
-        html = f"""
-        <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);
-                    border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;
-                    text-align:center;">
-          <div style="font-size:40px;margin-bottom:12px;">🔍</div>
-          <h2 style="margin:0 0 6px;font-size:20px;color:#f1f5f9;">No courses found</h2>
-          <p style="margin:0;color:#94a3b8;font-size:14px;">
-            We couldn't find courses matching "<strong>{query}</strong>".<br/>
-            Try a different search term.
-          </p>
-        </div>"""
-        return {"text": f"No courses found for '{query}'.", "html": html}
+        return {
+            "text": f"No courses found for '{query}'.",
+            "html": _empty_html(
+                f'We couldn\'t find courses matching "<strong>{query}</strong>".'
+                "<br/>Try a different search term."
+            ),
+        }
 
     # ── Build the results widget ─────────────────────────────────────────
     cards_html = "\n".join(_build_card_html(c) for c in results)
@@ -266,7 +235,8 @@ def search_courses(args: dict) -> dict:
             Testbook Courses
           </h2>
           <p style="margin:2px 0 0;font-size:13px;color:#64748b;">
-            {len(results)} result{"s" if len(results) != 1 else ""} for "<strong style="color:#94a3b8;">{query}</strong>"
+            {len(results)} result{"s" if len(results) != 1 else ""} for
+            "<strong style="color:#94a3b8;">{query}</strong>"
           </p>
         </div>
       </div>
@@ -287,4 +257,17 @@ def search_courses(args: dict) -> dict:
 
     text = f"Found {len(results)} course(s) for '{query}': {result_names}."
     return {"text": text, "html": html}
+
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _empty_html(message: str) -> str:
+    return f"""
+    <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);
+                border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;
+                text-align:center;">
+      <div style="font-size:40px;margin-bottom:12px;">🔍</div>
+      <h2 style="margin:0 0 6px;font-size:20px;color:#f1f5f9;">No courses found</h2>
+      <p style="margin:0;color:#94a3b8;font-size:14px;">{message}</p>
+    </div>"""
 
