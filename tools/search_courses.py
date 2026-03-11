@@ -4,8 +4,8 @@ tools/search_courses.py – Search Testbook courses/goals via the live Search AP
 Calls the Testbook global search endpoint (searchOn=goalCards) in real time,
 and returns a rich HTML widget with course cards.  Each card has a "Buy Course"
 button whose href is device-aware:
-  • Desktop / web  → pitchCarousel[0].webLink
-  • Android app    → pitchCarousel[0].deeplink
+  • Desktop / web  → testbook.com/{slug}
+  • Android app    → testbook://tbapp/landing/super?goalId={id}
 
 Super Pass Live is always pinned at the top of every search result.
 Its links are fetched once at startup and cached forever.
@@ -70,6 +70,7 @@ def _fetch_super_pass() -> dict | None:
             if slug == "super-pass-live":
                 parsed = _parse_card(card)
                 if parsed:
+                    parsed["web_link"] = "https://testbook.com/superpass"
                     _super_pass_cache = parsed
                     log.info("Cached Super Pass Live card")
                     return _super_pass_cache
@@ -133,26 +134,19 @@ def _parse_card(card: dict) -> dict | None:
     if icon.startswith("//"):
         icon = "https:" + icon
 
-    # Links from pitchCarousel (webLink + deeplink both come from the API)
-    carousel = props.get("pitchCarousel", [])
-    web_link = ""
-    deep_link = ""
-    if carousel and isinstance(carousel[0], dict):
-        web_link = (carousel[0].get("webLink") or "").strip()
-        deep_link = (carousel[0].get("deeplink") or "").strip()
+    # Web link: just the goal landing page
+    goal_id = card.get("_id", "")
+    web_link = f"https://testbook.com/{slug}"
 
-    # Fallback when pitchCarousel is empty
-    if not web_link:
-        web_link = f"https://testbook.com/super-coaching/{slug}/plans"
-    if not deep_link:
-        deep_link = web_link  # same as web if no deeplink available
+    # Deep link: standard app deeplink format
+    deep_link = f"testbook://tbapp/landing/super?goalId={goal_id}"
 
     # Discount
     discount = card.get("discountPercent")
 
     return {
         "name": title,
-        "id": card.get("_id", ""),
+        "id": goal_id,
         "slug": slug,
         "icon": icon,
         "web_link": web_link,
