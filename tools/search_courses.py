@@ -215,10 +215,10 @@ def _build_card_html(course: dict, index: int = 0) -> str:
          onclick="(function(e){{var u=/Android/i.test(navigator.userAgent)?e.currentTarget.dataset.deeplink:e.currentTarget.href;window.open(u,'_blank');e.preventDefault()}})(event)"
          target="_blank" rel="noopener noreferrer"
          style="display:block;width:100%;padding:10px 0;border-radius:8px;
-                background:rgba(249,115,22,0.15);color:#fb923c;
+                background:rgba(249,115,22,0.18);color:#fdba74;
                 font-weight:600;font-size:13px;cursor:pointer;text-decoration:none;
                 text-align:center;letter-spacing:0.2px;
-                border:1px solid rgba(249,115,22,0.25);
+                border:1px solid rgba(249,115,22,0.3);
                 box-sizing:border-box;transition:background .2s ease;">
         Join Now →
       </a>
@@ -287,9 +287,14 @@ def search_courses(args: dict) -> dict:
 
     html = f"""
     <style>
-      @keyframes tbRotate {{
-        0%   {{ transform:translate(-50%,-50%) rotate(0deg); }}
-        100% {{ transform:translate(-50%,-50%) rotate(360deg); }}
+      @property --tb-angle {{
+        syntax: '<angle>';
+        initial-value: 0deg;
+        inherits: false;
+      }}
+      @keyframes tbSpin {{
+        0%   {{ --tb-angle: 0deg; }}
+        100% {{ --tb-angle: 360deg; }}
       }}
       @keyframes tbFadeUp {{
         from {{ opacity:0; transform:translateY(8px); }}
@@ -300,38 +305,47 @@ def search_courses(args: dict) -> dict:
         50%     {{ opacity:1; }}
       }}
       .tb-card:hover {{ background:rgba(255,255,255,0.045) !important; }}
+      .tb-border {{
+        position:relative;
+        border-radius:16px;
+        max-width:520px;
+        font-family:-apple-system,system-ui,sans-serif;
+      }}
+      .tb-border::before {{
+        content:'';
+        position:absolute;
+        inset:0;
+        border-radius:16px;
+        padding:1.5px;
+        background:conic-gradient(
+          from var(--tb-angle),
+          transparent 0%,
+          #f97316 5%,
+          #fb923c 10%,
+          #fbbf24 14%,
+          transparent 22%,
+          transparent 32%,
+          rgba(236,72,153,0.7) 35%,
+          rgba(168,85,247,0.5) 39%,
+          transparent 44%,
+          transparent 56%,
+          rgba(255,255,255,0.45) 58%,
+          rgba(192,132,252,0.35) 61%,
+          transparent 66%,
+          transparent 80%,
+          rgba(249,115,22,0.35) 84%,
+          transparent 90%,
+          transparent 100%
+        );
+        -webkit-mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+        -webkit-mask-composite:xor;
+        mask-composite:exclude;
+        animation:tbSpin 4s cubic-bezier(0.68, 0, 0.27, 1) infinite;
+        pointer-events:none;
+      }}
     </style>
-    <div style="position:relative;border-radius:16px;max-width:520px;padding:1.5px;
-                overflow:hidden;font-family:-apple-system,system-ui,sans-serif;">
-      <!-- Spinning gradient layer (border) — centered so all 4 sides show -->
-      <div style="position:absolute;top:50%;left:50%;
-                  width:200%;height:200%;
-                  background:conic-gradient(
-                    from 0deg,
-                    transparent 0%,
-                    #f97316 5%,
-                    #fb923c 9%,
-                    #fbbf24 13%,
-                    transparent 20%,
-                    transparent 30%,
-                    rgba(236,72,153,0.7) 33%,
-                    rgba(168,85,247,0.6) 37%,
-                    transparent 42%,
-                    transparent 55%,
-                    rgba(255,255,255,0.5) 57%,
-                    rgba(192,132,252,0.4) 60%,
-                    transparent 64%,
-                    transparent 78%,
-                    rgba(249,115,22,0.4) 82%,
-                    rgba(251,146,60,0.3) 86%,
-                    transparent 90%,
-                    transparent 100%
-                  );
-                  animation:tbRotate 5s ease-in-out infinite;
-                  z-index:0;"></div>
-      <!-- Inner content -->
-      <div style="background:#0f1117;border-radius:14.5px;overflow:hidden;
-                  position:relative;z-index:1;">
+    <div class="tb-border">
+      <div style="background:#0f1117;border-radius:16px;overflow:hidden;">
 
         <div style="padding:20px;">
 
@@ -364,7 +378,7 @@ def search_courses(args: dict) -> dict:
                       animation:tbFadeUp .4s ease both;animation-delay:.5s;">
             <a href="https://testbook.com" target="_blank" rel="noopener noreferrer"
                style="font-size:11px;color:#475569;text-decoration:none;">
-              testbook.com
+              Powered by Testbook
             </a>
           </div>
 
@@ -416,22 +430,42 @@ def _build_text_response(query: str, results: list[dict]) -> str:
 def _empty_html(message: str) -> str:
     return f"""
     <style>
-      @keyframes tbRotate {{
-        0%   {{ transform:translate(-50%,-50%) rotate(0deg); }}
-        100% {{ transform:translate(-50%,-50%) rotate(360deg); }}
+      @property --tb-angle {{
+        syntax: '<angle>';
+        initial-value: 0deg;
+        inherits: false;
+      }}
+      @keyframes tbSpin {{
+        0%   {{ --tb-angle: 0deg; }}
+        100% {{ --tb-angle: 360deg; }}
+      }}
+      .tb-border {{
+        position:relative;
+        border-radius:16px;
+        max-width:520px;
+        font-family:-apple-system,system-ui,sans-serif;
+      }}
+      .tb-border::before {{
+        content:'';
+        position:absolute;
+        inset:0;
+        border-radius:16px;
+        padding:1.5px;
+        background:conic-gradient(
+          from var(--tb-angle),
+          transparent 0%, #f97316 5%, #fb923c 10%, transparent 22%,
+          transparent 55%, rgba(236,72,153,0.7) 58%, transparent 64%,
+          transparent 100%
+        );
+        -webkit-mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+        -webkit-mask-composite:xor;
+        mask-composite:exclude;
+        animation:tbSpin 4s cubic-bezier(0.68, 0, 0.27, 1) infinite;
+        pointer-events:none;
       }}
     </style>
-    <div style="position:relative;border-radius:16px;max-width:520px;padding:1.5px;
-                overflow:hidden;font-family:-apple-system,system-ui,sans-serif;">
-      <div style="position:absolute;top:50%;left:50%;width:200%;height:200%;
-                  background:conic-gradient(
-                    from 0deg, transparent 0%, #f97316 5%, #fb923c 9%,
-                    transparent 20%, transparent 55%,
-                    rgba(236,72,153,0.7) 58%, transparent 64%, transparent 100%
-                  );
-                  animation:tbRotate 5s ease-in-out infinite;z-index:0;"></div>
-      <div style="background:#0f1117;border-radius:14.5px;overflow:hidden;
-                  position:relative;z-index:1;">
+    <div class="tb-border">
+      <div style="background:#0f1117;border-radius:16px;overflow:hidden;">
         <div style="padding:32px 20px;text-align:center;">
           <div style="font-size:32px;margin-bottom:12px;opacity:0.5;">🔍</div>
           <p style="margin:0;font-size:14px;font-weight:500;color:#94a3b8;
