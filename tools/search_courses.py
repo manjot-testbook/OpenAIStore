@@ -33,7 +33,7 @@ _PROJECTION = json.dumps({
                     "url": 1, "webLink": 1, "deeplink": 1, "type": 1,
                 },
             },
-            "isDeListed": 1, "discountPercent": 1, "goalSubs": 1,
+            "isDeListed": 1, "discountPercent": 1, "goalSubs": 1, "stage": 1,
         },
     },
     "searchId": 1,
@@ -116,6 +116,10 @@ def _search_api(term: str) -> list[dict]:
 def _parse_card(card: dict) -> dict | None:
     """Extract the fields we need from a raw goalCard."""
     if card.get("isDeListed"):
+        return None
+
+    # Only include freezed (live/published) goals
+    if card.get("stage") != "freezed":
         return None
 
     props = card.get("properties", {})
