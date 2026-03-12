@@ -2,10 +2,8 @@
 tools/search_courses.py – Search Testbook courses/goals via the live Search API.
 
 Calls the Testbook global search endpoint (searchOn=goalCards) in real time,
-and returns a rich HTML widget with course cards.  Each card has a "Buy Course"
-button whose href is device-aware:
-  • Desktop / web  → testbook.com/{slug}
-  • Android app    → testbook://tbapp/landing/super?goalId={id}
+and returns a rich HTML widget with course cards.  Each card has a "Join Now"
+button that links to https://testbook.com/<goalId>-coaching for all platforms.
 
 Super Pass Live is always pinned at the top of every search result.
 Its links are fetched once at startup and cached forever.
@@ -29,9 +27,6 @@ _PROJECTION = json.dumps({
             "properties": {
                 "title": 1, "icon": 1, "cardTitle": 1, "cardDescription": 1,
                 "cardIcon": 1, "slug": 1, "heading": 1,
-                "pitchCarousel": {
-                    "url": 1, "webLink": 1, "deeplink": 1, "type": 1,
-                },
             },
             "isDeListed": 1, "discountPercent": 1, "goalSubs": 1, "stage": 1,
         },
@@ -70,7 +65,7 @@ def _fetch_super_pass() -> dict | None:
             if slug == "super-pass-live":
                 parsed = _parse_card(card)
                 if parsed:
-                    parsed["web_link"] = "https://testbook.com/superpass"
+                    parsed["url"] = "https://testbook.com/superpass"
                     _super_pass_cache = parsed
                     log.info("Cached Super Pass Live card")
                     return _super_pass_cache
@@ -138,12 +133,9 @@ def _parse_card(card: dict) -> dict | None:
     if icon.startswith("//"):
         icon = "https:" + icon
 
-    # Web link: just the goal landing page
+    # Universal link for both web and app
     goal_id = card.get("_id", "")
-    web_link = f"https://testbook.com/{slug}"
-
-    # Deep link: standard app deeplink format
-    deep_link = f"testbook://tbapp/landing/super?goalId={goal_id}"
+    url = f"https://testbook.com/{goal_id}-coaching"
 
     # Discount
     discount = card.get("discountPercent")
@@ -153,8 +145,7 @@ def _parse_card(card: dict) -> dict | None:
         "id": goal_id,
         "slug": slug,
         "icon": icon,
-        "web_link": web_link,
-        "deep_link": deep_link,
+        "url": url,
         "discount": discount,
     }
 
@@ -170,8 +161,7 @@ def _build_card_html(course: dict, index: int = 0) -> str:
     """Build HTML for one course card — orange theme, big Join Now CTA."""
     name = course["name"]
     icon = course["icon"] or _DEFAULT_ICON
-    web_link = course["web_link"]
-    deep_link = course["deep_link"]
+    url = course["url"]
     discount = course.get("discount")
     is_super_pass = course.get("slug") == "super-pass-live"
 
@@ -210,9 +200,7 @@ def _build_card_html(course: dict, index: int = 0) -> str:
           {badge}
         </div>
       </div>
-      <a href="{web_link}"
-         data-deeplink="{deep_link}"
-         onclick="(function(e){{var u=/Android/i.test(navigator.userAgent)?e.currentTarget.dataset.deeplink:e.currentTarget.href;window.open(u,'_blank');e.preventDefault()}})(event)"
+      <a href="{url}"
          target="_blank" rel="noopener noreferrer"
          style="display:block;width:100%;padding:10px 0;border-radius:8px;
                 background:rgba(249,115,22,0.18);color:#fdba74;
